@@ -4,6 +4,7 @@
 """
 
 from datetime import datetime
+import os
 
 # ==================== 필수 설정 ====================
 # 기본 경로 설정
@@ -11,7 +12,8 @@ BASE_IMAGE_PATH = r"E:\code\ocrPCmaple\image"
 BASE_OUTPUT_PATH = r"E:\code\ocrPCmaple\output"
 
 # 서버 선택 (scania 또는 cllrin)
-SERVER = "scania"  # "scania" 또는 "cllrin"
+# 환경 변수 SERVER_NAME이 있으면 그것을 우선 사용 (배치 파일용)
+SERVER = os.getenv('SERVER_NAME', 'scania')  # 기본값: scania
 
 # 날짜 (자동으로 오늘 날짜 사용, 수동 설정도 가능)
 # 자동: None (오늘 날짜)
@@ -34,8 +36,8 @@ EXCEL_FILE = rf"{EXCEL_FOLDER}\최저가_{DATE}.xlsx"
 # 서버별로 다른 API 키 사용 (분당 5회 제한을 피하기 위해)
 # 각 서버마다 다른 Google 계정으로 API 키를 발급받으세요
 API_KEYS = {
-    "scania": "AIzaSyBGvuK8D0YOdD--UhAOQmDNXvrP9Ohkuws",
-    "cllrin": "AIzaSyBGvuK8D0YOdD--UhAOQmDNXvrP9Ohkuws"
+    "scania": "여기에_스카니아용_API키_입력",
+    "cllrin": "여기에_챌린져스용_API키_입력"
 }
 
 # 현재 서버의 API 키 자동 선택
@@ -47,6 +49,9 @@ CONFIDENCE_THRESHOLD = 0.8
 
 # 가격 차이 허용 범위 (%) - 이 이상 차이나면 의심 항목으로 분류
 MAX_PRICE_DIFF_PERCENT = 10
+
+# 어제 대비 가격 변동 임계값 (%) - 의심 아이템 검증
+PRICE_CHANGE_THRESHOLD = 50  # 어제 대비 50% 이상 변동 시 의심
 
 # 자동 수정 여부
 AUTO_FIX = True

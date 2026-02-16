@@ -17,6 +17,7 @@ import time
 import config
 from excel_handler import ExcelHandler
 from validator import Validator
+from yesterday_comparator import YesterdayComparator
 from gemini_checker import GeminiChecker
 from report_generator import ReportGenerator
 
@@ -25,6 +26,7 @@ class PriceValidationApp:
     def __init__(self):
         self.excel_handler = None
         self.validator = None
+        self.comparator = None
         self.gemini_checker = None
         self.report = ReportGenerator()
         self.start_time = None
@@ -114,49 +116,49 @@ class PriceValidationApp:
         print()
     
     def _step3_match_images(self):
-        """3단계: 이미지 파일 매칭"""
-        print("[3/7] 이미지 파일 매칭 중...")
+        """3단계: 이미지 폴더 확인"""
+        print("[3/7] 이미지 폴더 확인 중...")
         
-        self.validator = Validator(self.image_folder, self.excel_handler.data)
-        matched = self.validator.match_images_to_items()
-        
-        print(f"✓ {len(matched)}개 이미지 파일 매칭 완료")
-        
-        # 매칭 안 된 이미지 확인
-        all_images = set(f.stem for f in self.image_folder.glob("*.png"))
-        matched_names = set(matched.keys())
-        unmatched = all_images - matched_names
-        
-        if unmatched:
-            print(f"⚠ 매칭되지 않은 이미지 {len(unmatched)}개:")
-            for name in list(unmatched)[:5]:  # 최대 5개만 표시
-                print(f"  - {name}")
-            if len(unmatched) > 5:
-                print(f"  ... 외 {len(unmatched) - 5}개")
+        # 이미지 파일 개수만 확인
+        png_files = list(self.image_folder.glob("*.png"))
+        print(f"✓ {len(png_files)}개 이미지 파일 발견")
         print()
     
     def _step4_find_suspicious(self):
-        """4단계: 의심 항목 추출"""
-        print("[4/7] 1차 검증 (규칙 기반)...")
+        """4단계: 어제와 가격 비교"""
+        print("[4/7] 가격 변동 분석 (어제 vs 오늘)...")
         
-        suspicious = self.validator.find_suspicious_items()
+        # YesterdayComparator 생성
+        self.comparator = YesterdayComparator(config.SERVER)
         
-        if suspicious:
-            print(f"⚠ 의심 항목 {len(suspicious)}개 발견")
-            
-            # 우선순위별로 표시
-            high_priority = [s for s in suspicious if s.get('priority') == 'high']
-            medium_priority = [s for s in suspicious if s.get('priority') == 'medium']
-            
-            if high_priority:
-                print(f"  - 높은 우선순위: {len(high_priority)}개")
-                for item in high_priority[:3]:  # 최대 3개만 표시
-                    print(f"    · {item['item_name']} ({item['reason']})")
-            
-            if medium_priority:
-                print(f"  - 중간 우선순위: {len(medium_priority)}개")
+        # 어제 파일 찾기 및 로드
+        yesterday_loaded = self.comparator.load_yesterday_data()
+        
+        if not yesterday_loaded:
+            print("⚠ 어제 파일 없음 (첫 실행 또는 파일 없음)")
+            print("  → 어제 데이터와 비교할 수 없어 AI 검증을 건너뜁니다")
+            print()
+            self.suspicious_items = []
+            return
+        
+        # 통계 출력
+        stats = self.comparator.get_stats()
+        print(f"✓ 어제 파일 발견: {stats['yesterday_file']}")
+        print(f"✓ 어제 데이터 {stats['yesterday_items']}개 로드")
+        
+        # 가격 비교
+        self.suspicious_items = self.comparator.compare_prices(self.excel_handler.data)
+        
+        if self.suspicious_items:
+            print(f"⚠ 의심 항목 {len(self.suspicious_items)}개 발견")
+            for item in self.suspicious_items[:5]:  # 최대 5개만 표시
+                print(f"  · {item['item_name']}")
+                print(f"    어제: {self._format_price(item['yesterday_price'])} → 오늘: {self._format_price(item['today_price'])}")
+                print(f"    변동: {item['change_percent']:.1f}%")
+            if len(self.suspicious_items) > 5:
+                print(f"  ... 외 {len(self.suspicious_items) - 5}개")
         else:
-            print("✓ 의심스러운 항목이 없습니다")
+            print("✓ 의심스러운 가격 변동 없음")
         
         print()
     
@@ -164,9 +166,8 @@ class PriceValidationApp:
         """5단계: AI 검증"""
         print("[5/7] 2차 검증 (AI 분석)...")
         
-        suspicious_images = self.validator.get_suspicious_images()
-        
-        if not suspicious_images:
+        # 의심 항목이 없으면 건너뛰기
+        if not hasattr(self, 'suspicious_items') or not self.suspicious_items:
             print("✓ 검증할 의심 항목이 없습니다")
             print()
             return []
@@ -199,46 +200,55 @@ class PriceValidationApp:
                 return
             
             # 일반 진행 메시지
-            item_name = suspicious_images[current - 1]['item_name']
+            item = self.suspicious_items[current - 1]
+            item_name = item['item_name']
             print(f"⏳ {item_name}.png 분석 중... ({current}/{total})")
             
             if result['success']:
                 ai_price = result['price']
-                excel_price = suspicious_images[current - 1]['excel_price']
+                today_price = item['today_price']
                 
-                if excel_price is None:
+                # AI 판독과 오늘 엑셀 가격 비교
+                try:
+                    today_price_int = int(today_price)
+                except (ValueError, TypeError):
                     print(f"  → AI 판독: {self._format_price(ai_price)}")
-                    print(f"  → 엑셀: 가격 없음")
-                    print(f"  ❌ 오류 확정! (엑셀에 가격 없음)")
+                    print(f"  → 엑셀: {today_price} (형식 오류)")
+                    print(f"  ❌ 오류 확정! (가격 형식 문제)")
                 else:
-                    try:
-                        excel_price_int = int(excel_price)
-                    except (ValueError, TypeError):
+                    diff_percent = abs(ai_price - today_price_int) / today_price_int * 100
+                    
+                    if diff_percent > config.MAX_PRICE_DIFF_PERCENT:
                         print(f"  → AI 판독: {self._format_price(ai_price)}")
-                        print(f"  → 엑셀: {excel_price} (형식 오류)")
-                        print(f"  ❌ 오류 확정! (가격 형식 문제)")
+                        print(f"  → 엑셀(오늘): {self._format_price(today_price_int)}")
+                        print(f"  → 엑셀(어제): {self._format_price(item['yesterday_price'])}")
+                        print(f"  ❌ 오류 확정! (AI와 차이: {diff_percent:.1f}%)")
                     else:
-                        diff_percent = abs(ai_price - excel_price_int) / excel_price_int * 100
-                        
-                        if diff_percent > config.MAX_PRICE_DIFF_PERCENT:
-                            print(f"  → AI 판독: {self._format_price(ai_price)}")
-                            print(f"  → 엑셀: {self._format_price(excel_price_int)}")
-                            print(f"  ❌ 오류 확정! (차이: {diff_percent:.1f}%)")
-                        else:
-                            print(f"  → AI 판독: {self._format_price(ai_price)}")
-                            print(f"  → 엑셀: {self._format_price(excel_price_int)}")
-                            print(f"  ✅ 정상 (1차 검증 오탐)")
+                        print(f"  → AI 판독: {self._format_price(ai_price)}")
+                        print(f"  → 엑셀(오늘): {self._format_price(today_price_int)}")
+                        print(f"  ✅ 정상 (오늘 가격이 맞음, 어제가 잘못됐었음)")
             else:
                 error_msg = result.get('error', '알 수 없는 오류')
                 print(f"  ❌ 분석 실패: {error_msg}")
             
             print()
         
-        # 이미지 경로 리스트 추출
-        image_paths = [item['image_path'] for item in suspicious_images]
+        # 이미지 경로 리스트 생성
+        image_paths = []
+        for item in self.suspicious_items:
+            image_path = self.image_folder / f"{item['item_name']}.png"
+            if not image_path.exists():
+                print(f"⚠ 이미지 없음: {item['item_name']}.png")
+                continue
+            image_paths.append(image_path)
+        
+        if not image_paths:
+            print("❌ 검증할 이미지 파일이 없습니다")
+            print()
+            return []
         
         # 배치 분석 실행 (자동 대기 포함)
-        print(f"총 {len(image_paths)}개 항목 검증 시작 (4개씩 배치 처리)")
+        print(f"총 {len(image_paths)}개 항목 검증 시작 (자동 대기 포함)")
         print()
         
         ai_results = self.gemini_checker.batch_analyze(image_paths, callback=progress_callback)
@@ -246,11 +256,15 @@ class PriceValidationApp:
         # 결과 처리
         results = []
         for idx, ai_result in enumerate(ai_results):
-            item = suspicious_images[idx]
+            if idx >= len(self.suspicious_items):
+                break
+                
+            item = self.suspicious_items[idx]
             
             result = {
                 'item_name': item['item_name'],
-                'excel_price': item['excel_price'],
+                'excel_price': item['today_price'],
+                'yesterday_price': item['yesterday_price'],
                 'reason': item['reason'],
                 'success': ai_result['success']
             }
@@ -263,17 +277,14 @@ class PriceValidationApp:
                 result['confidence'] = confidence
                 result['display_text'] = ai_result.get('display_text')
                 
-                # 가격 비교
-                if item['excel_price'] is None:
+                # AI 가격과 오늘 엑셀 가격 비교
+                try:
+                    today_price_int = int(item['today_price'])
+                except (ValueError, TypeError):
                     result['has_error'] = True
                 else:
-                    try:
-                        excel_price_int = int(item['excel_price'])
-                    except (ValueError, TypeError):
-                        result['has_error'] = True
-                    else:
-                        diff_percent = abs(ai_price - excel_price_int) / excel_price_int * 100
-                        result['has_error'] = diff_percent > config.MAX_PRICE_DIFF_PERCENT
+                    diff_percent = abs(ai_price - today_price_int) / today_price_int * 100
+                    result['has_error'] = diff_percent > config.MAX_PRICE_DIFF_PERCENT
             else:
                 result['error'] = ai_result.get('error', '알 수 없는 오류')
                 result['has_error'] = False
@@ -332,13 +343,26 @@ class PriceValidationApp:
         # 리포트 작성
         self.report.add_header(f"메이플 가격 검증 리포트 - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         
-        # 통계
-        stats = self.validator.get_stats()
-        self.report.add_stats(stats)
+        # 서버 및 비교 정보
+        self.report.add_section("검증 정보")
+        self.report.add_line(f"서버: {config.SERVER}")
+        self.report.add_line(f"검증 날짜: {config.DATE}")
+        
+        if hasattr(self, 'comparator') and self.comparator:
+            stats = self.comparator.get_stats()
+            if stats['yesterday_file']:
+                self.report.add_line(f"비교 기준: {stats['yesterday_file']}")
+                self.report.add_line(f"어제 데이터: {stats['yesterday_items']}개")
         
         # 의심 항목
-        suspicious_images = self.validator.get_suspicious_images()
-        self.report.add_suspicious_items(suspicious_images)
+        if hasattr(self, 'suspicious_items') and self.suspicious_items:
+            self.report.add_section("의심 항목 목록 (어제 대비 가격 변동)")
+            for idx, item in enumerate(self.suspicious_items, 1):
+                self.report.add_line(f"{idx}. {item['item_name']}")
+                self.report.add_line(f"어제: {self._format_price(item['yesterday_price'])}", indent=1)
+                self.report.add_line(f"오늘: {self._format_price(item['today_price'])}", indent=1)
+                self.report.add_line(f"변동률: {item['change_percent']:.1f}%", indent=1)
+                self.report.add_line("")
         
         # AI 검증 결과
         self.report.add_verification_results(verification_results)
