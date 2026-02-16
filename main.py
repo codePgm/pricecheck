@@ -185,25 +185,68 @@ class PriceValidationApp:
             print()
             return []
         
-        results = []
-        total = len(suspicious_images)
-        
-        for idx, item in enumerate(suspicious_images, 1):
-            print(f"⏳ {item['item_name']}.png 분석 중... ({idx}/{total})")
+        # 콜백 함수 정의
+        def progress_callback(current, total, result):
+            # 대기 메시지 처리
+            if result.get('waiting'):
+                wait_time = result['wait_time']
+                processed = result['processed']
+                remaining = result['remaining']
+                print()
+                print(f"⏸ API 제한 방지를 위해 {wait_time}초 대기 중...")
+                print(f"  (진행: {processed}/{total}, 남은 항목: {remaining}개)")
+                print()
+                return
             
-            # AI로 이미지 분석
-            try:
-                ai_result = self.gemini_checker.analyze_price_image(item['image_path'])
-            except Exception as e:
-                print(f"  ❌ 분석 중 오류: {str(e)}")
-                results.append({
-                    'item_name': item['item_name'],
-                    'excel_price': item['excel_price'],
-                    'reason': item['reason'],
-                    'success': False,
-                    'error': str(e)
-                })
-                continue
+            # 일반 진행 메시지
+            item_name = suspicious_images[current - 1]['item_name']
+            print(f"⏳ {item_name}.png 분석 중... ({current}/{total})")
+            
+            if result['success']:
+                ai_price = result['price']
+                excel_price = suspicious_images[current - 1]['excel_price']
+                
+                if excel_price is None:
+                    print(f"  → AI 판독: {self._format_price(ai_price)}")
+                    print(f"  → 엑셀: 가격 없음")
+                    print(f"  ❌ 오류 확정! (엑셀에 가격 없음)")
+                else:
+                    try:
+                        excel_price_int = int(excel_price)
+                    except (ValueError, TypeError):
+                        print(f"  → AI 판독: {self._format_price(ai_price)}")
+                        print(f"  → 엑셀: {excel_price} (형식 오류)")
+                        print(f"  ❌ 오류 확정! (가격 형식 문제)")
+                    else:
+                        diff_percent = abs(ai_price - excel_price_int) / excel_price_int * 100
+                        
+                        if diff_percent > config.MAX_PRICE_DIFF_PERCENT:
+                            print(f"  → AI 판독: {self._format_price(ai_price)}")
+                            print(f"  → 엑셀: {self._format_price(excel_price_int)}")
+                            print(f"  ❌ 오류 확정! (차이: {diff_percent:.1f}%)")
+                        else:
+                            print(f"  → AI 판독: {self._format_price(ai_price)}")
+                            print(f"  → 엑셀: {self._format_price(excel_price_int)}")
+                            print(f"  ✅ 정상 (1차 검증 오탐)")
+            else:
+                error_msg = result.get('error', '알 수 없는 오류')
+                print(f"  ❌ 분석 실패: {error_msg}")
+            
+            print()
+        
+        # 이미지 경로 리스트 추출
+        image_paths = [item['image_path'] for item in suspicious_images]
+        
+        # 배치 분석 실행 (자동 대기 포함)
+        print(f"총 {len(image_paths)}개 항목 검증 시작 (4개씩 배치 처리)")
+        print()
+        
+        ai_results = self.gemini_checker.batch_analyze(image_paths, callback=progress_callback)
+        
+        # 결과 처리
+        results = []
+        for idx, ai_result in enumerate(ai_results):
+            item = suspicious_images[idx]
             
             result = {
                 'item_name': item['item_name'],
@@ -223,38 +266,19 @@ class PriceValidationApp:
                 # 가격 비교
                 if item['excel_price'] is None:
                     result['has_error'] = True
-                    print(f"  → AI 판독: {self._format_price(ai_price)}")
-                    print(f"  → 엑셀: 가격 없음")
-                    print(f"  ❌ 오류 확정! (엑셀에 가격 없음)")
                 else:
-                    # 엑셀 가격을 숫자로 변환
                     try:
                         excel_price_int = int(item['excel_price'])
                     except (ValueError, TypeError):
                         result['has_error'] = True
-                        print(f"  → AI 판독: {self._format_price(ai_price)}")
-                        print(f"  → 엑셀: {item['excel_price']} (형식 오류)")
-                        print(f"  ❌ 오류 확정! (가격 형식 문제)")
                     else:
                         diff_percent = abs(ai_price - excel_price_int) / excel_price_int * 100
-                        
-                        if diff_percent > config.MAX_PRICE_DIFF_PERCENT:
-                            result['has_error'] = True
-                            print(f"  → AI 판독: {self._format_price(ai_price)}")
-                            print(f"  → 엑셀: {self._format_price(excel_price_int)}")
-                            print(f"  ❌ 오류 확정! (차이: {diff_percent:.1f}%)")
-                        else:
-                            result['has_error'] = False
-                            print(f"  → AI 판독: {self._format_price(ai_price)}")
-                            print(f"  → 엑셀: {self._format_price(excel_price_int)}")
-                            print(f"  ✅ 정상 (1차 검증 오탐)")
+                        result['has_error'] = diff_percent > config.MAX_PRICE_DIFF_PERCENT
             else:
                 result['error'] = ai_result.get('error', '알 수 없는 오류')
                 result['has_error'] = False
-                print(f"  ❌ 분석 실패: {result['error']}")
             
             results.append(result)
-            print()
         
         return results
     

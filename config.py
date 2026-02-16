@@ -30,8 +30,16 @@ IMAGE_FOLDER = rf"{BASE_IMAGE_PATH}\{SERVER}"
 EXCEL_FOLDER = rf"{BASE_OUTPUT_PATH}\{DATE}\{SERVER}"
 EXCEL_FILE = rf"{EXCEL_FOLDER}\최저가_{DATE}.xlsx"
 
-# Google Gemini API 키 (https://makersuite.google.com/app/apikey 에서 발급)
-GEMINI_API_KEY = "AIzaSyBATGJ_hpNMkDDUKiVBVbpj32B85W32pSE" #제미나이 API 키
+# ==================== Google Gemini API 키 ====================
+# 서버별로 다른 API 키 사용 (분당 5회 제한을 피하기 위해)
+# 각 서버마다 다른 Google 계정으로 API 키를 발급받으세요
+API_KEYS = {
+    "scania": "AIzaSyBGvuK8D0YOdD--UhAOQmDNXvrP9Ohkuws",
+    "cllrin": "AIzaSyBGvuK8D0YOdD--UhAOQmDNXvrP9Ohkuws"
+}
+
+# 현재 서버의 API 키 자동 선택
+GEMINI_API_KEY = API_KEYS.get(SERVER, "여기에_발급받은_API키를_입력하세요")
 
 # ==================== 고급 설정 ====================
 # AI 확신도 임계값 (0.0 ~ 1.0, 높을수록 엄격)

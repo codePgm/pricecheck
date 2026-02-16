@@ -28,7 +28,7 @@ class GeminiChecker:
         if api_key is None:
             api_key = config.GEMINI_API_KEY
         
-        if not api_key or api_key == "AIzaSyBATGJ_hpNMkDDUKiVBVbpj32B85W32pSE": #제미나이 API 키
+        if not api_key or api_key == "여기에_발급받은_API키를_입력하세요": #이거 건드는거 아님
             raise ValueError(
                 "Gemini API 키가 설정되지 않았습니다.\n"
                 "config.py 파일에서 GEMINI_API_KEY를 설정해주세요.\n"
@@ -169,7 +169,7 @@ class GeminiChecker:
     
     def batch_analyze(self, image_paths, callback=None):
         """
-        여러 이미지 일괄 분석
+        여러 이미지 일괄 분석 (Rate limit 자동 처리)
         
         Args:
             image_paths: 이미지 경로 리스트
@@ -178,8 +178,14 @@ class GeminiChecker:
         Returns:
             list: 분석 결과 리스트
         """
+        import time
+        
         results = []
         total = len(image_paths)
+        
+        # Rate limit 설정
+        BATCH_SIZE = 4  # 한 번에 처리할 개수
+        WAIT_TIME = 70  # 대기 시간 (초) - 1분 10초
         
         for idx, image_path in enumerate(image_paths, 1):
             result = self.analyze_price_image(image_path)
@@ -190,5 +196,18 @@ class GeminiChecker:
             
             if callback:
                 callback(idx, total, result)
+            
+            # Rate limit 처리: 4개마다 대기
+            if idx % BATCH_SIZE == 0 and idx < total:
+                # 다음 배치가 있으면 대기
+                if callback:
+                    # 대기 메시지 전달 (특수 형태)
+                    callback(idx, total, {
+                        'waiting': True,
+                        'wait_time': WAIT_TIME,
+                        'processed': idx,
+                        'remaining': total - idx
+                    })
+                time.sleep(WAIT_TIME)
         
         return results
