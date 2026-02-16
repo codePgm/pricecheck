@@ -7,5 +7,3 @@ echo.
 
 set SERVER_NAME=scania
 python main.py
-
-pause

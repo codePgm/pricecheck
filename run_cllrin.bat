@@ -7,5 +7,3 @@ echo.
 
 set SERVER_NAME=cllrin
 python main.py
-
-pause
