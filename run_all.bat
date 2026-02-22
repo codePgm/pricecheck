@@ -12,7 +12,8 @@ echo ========================================
 echo [1/2] Validating Scania Server...
 echo ========================================
 set SERVER_NAME=scania
-python main.py
+cd /d E:\code\pricecheck
+python E:\code\pricecheck\main.py
 
 echo.
 echo.
@@ -20,7 +21,8 @@ echo ========================================
 echo [2/2] Validating Cllrin Server...
 echo ========================================
 set SERVER_NAME=cllrin
-python main.py
+cd /d E:\code\pricecheck
+python E:\code\pricecheck\main.py
 
 echo.
 echo.
@@ -29,5 +31,3 @@ echo All Servers Validated!
 echo ========================================
 echo Check the output folder for results.
 echo ========================================
-
-pause
