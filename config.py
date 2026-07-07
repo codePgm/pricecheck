@@ -28,6 +28,14 @@ if DATE is None:
 # 이미지 폴더 경로
 IMAGE_FOLDER = rf"{BASE_IMAGE_PATH}\{SERVER}"
 
+# 크롭 이미지 폴더 경로 (서버 구분 없이 공용)
+# 일부 아이템은 원본 스크린샷 대신 가격만 잘라낸 크롭본으로 AI 검증
+CROP_IMAGE_FOLDER = rf"{os.path.dirname(BASE_IMAGE_PATH)}\crop"
+
+# 크롭 폴더에서 이미지를 가져올 아이템 목록
+# 여기에 있는 아이템은 IMAGE_FOLDER가 아니라 CROP_IMAGE_FOLDER에서 이미지를 찾음
+CROP_ITEMS = ["솔 에르다 조각"]
+
 # 엑셀 파일 경로
 EXCEL_FOLDER = rf"{BASE_OUTPUT_PATH}\{DATE}\{SERVER}"
 EXCEL_FILE = rf"{EXCEL_FOLDER}\최저가_{DATE}.xlsx"
@@ -36,8 +44,8 @@ EXCEL_FILE = rf"{EXCEL_FOLDER}\최저가_{DATE}.xlsx"
 # 서버별로 다른 API 키 사용 (분당 5회 제한을 피하기 위해)
 # 각 서버마다 다른 Google 계정으로 API 키를 발급받으세요
 API_KEYS = {
-    "scania": "여기에_스카니아용_API키_입력",
-    "cllrin": "여기에_챌린져스용_API키_입력"
+    "scania": "AIzaSyAF0YRcCEmkRxO-ezDgZV8eLNGEQRWizO8",
+    "cllrin": "AIzaSyAYfGaM3dbolpS5dmMfcEbXT5HLkHv01-k"
 }
 
 # 현재 서버의 API 키 자동 선택

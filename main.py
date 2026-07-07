@@ -236,9 +236,9 @@ class PriceValidationApp:
         # 이미지 경로 리스트 생성
         image_paths = []
         for item in self.suspicious_items:
-            image_path = self.image_folder / f"{item['item_name']}.png"
+            image_path = self._resolve_image_path(item['item_name'])
             if not image_path.exists():
-                print(f"⚠ 이미지 없음: {item['item_name']}.png")
+                print(f"⚠ 이미지 없음: {image_path}")
                 continue
             image_paths.append(image_path)
         
@@ -424,6 +424,22 @@ class PriceValidationApp:
             if report_path.exists():
                 print(f"  - {report_path.name}")
     
+    def _resolve_image_path(self, item_name):
+        """
+        아이템 이름에 맞는 검증용 이미지 경로 반환.
+        config.CROP_ITEMS에 포함된 아이템은 크롭 폴더에서,
+        그 외에는 일반 이미지 폴더에서 가져온다.
+        크롭 이미지가 없으면 일반 이미지 폴더로 폴백한다.
+        """
+        crop_items = getattr(config, 'CROP_ITEMS', [])
+        if item_name in crop_items:
+            crop_path = Path(config.CROP_IMAGE_FOLDER) / f"{item_name}.png"
+            if crop_path.exists():
+                return crop_path
+            # 크롭본이 없으면 원본 이미지로 폴백
+            print(f"⚠ 크롭 이미지 없음, 원본 이미지 사용: {item_name}")
+        return self.image_folder / f"{item_name}.png"
+
     def _format_price(self, price):
         """가격 포맷팅"""
         if price is None:
