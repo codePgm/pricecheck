@@ -34,7 +34,19 @@ CROP_IMAGE_FOLDER = rf"{os.path.dirname(BASE_IMAGE_PATH)}\crop"
 
 # 크롭 폴더에서 이미지를 가져올 아이템 목록
 # 여기에 있는 아이템은 IMAGE_FOLDER가 아니라 CROP_IMAGE_FOLDER에서 이미지를 찾음
-CROP_ITEMS = ["솔 에르다 조각"]
+# (개당 단가 아이템들 - OCR 쪽 PER_UNIT_ITEMS와 동일하게 유지)
+CROP_ITEMS = [
+    "솔 에르다 조각",
+    "신념의 연마석",
+    "생명의 연마석",
+    "영롱한 달빛 포션",
+    "익셉셔널 해머 (귀고리)",
+    "익셉셔널 해머 (눈장식)",
+    "익셉셔널 해머 (얼굴장식)",
+    "익셉셔널 해머 (훈장)",
+    "익셉셔널 해머 (벨트)",
+    "부티크 티켓",
+]
 
 # 엑셀 파일 경로
 EXCEL_FOLDER = rf"{BASE_OUTPUT_PATH}\{DATE}\{SERVER}"
@@ -42,14 +54,15 @@ EXCEL_FILE = rf"{EXCEL_FOLDER}\최저가_{DATE}.xlsx"
 
 # ==================== Google Gemini API 키 ====================
 # 서버별로 다른 API 키 사용 (분당 5회 제한을 피하기 위해)
-# 각 서버마다 다른 Google 계정으로 API 키를 발급받으세요
-API_KEYS = {
-    "scania": "AIzaSyAF0YRcCEmkRxO-ezDgZV8eLNGEQRWizO8",
-    "cllrin": "AIzaSyAYfGaM3dbolpS5dmMfcEbXT5HLkHv01-k"
-}
+# 키는 git 추적 안 되는 secret_keys.py 에서 불러옴
+# 최초 설정: secret_keys.example.py 를 secret_keys.py 로 복사 후 키 입력
+try:
+    from secret_keys import API_KEYS
+except ImportError:
+    API_KEYS = {}
 
-# 현재 서버의 API 키 자동 선택
-GEMINI_API_KEY = API_KEYS.get(SERVER, "여기에_발급받은_API키를_입력하세요")
+# 현재 서버의 API 키 자동 선택 (환경변수 GEMINI_API_KEY 가 있으면 우선 사용)
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') or API_KEYS.get(SERVER, "여기에_발급받은_API키를_입력하세요")
 
 # ==================== 고급 설정 ====================
 # AI 확신도 임계값 (0.0 ~ 1.0, 높을수록 엄격)
