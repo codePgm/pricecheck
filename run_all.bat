@@ -12,8 +12,8 @@ echo ========================================
 echo [1/2] Validating Scania Server...
 echo ========================================
 set SERVER_NAME=scania
-cd /d E:\code\pricecheck
-python E:\code\pricecheck\main.py
+cd /d "%~dp0"
+python main.py
 
 echo.
 echo.
@@ -21,8 +21,8 @@ echo ========================================
 echo [2/2] Validating Cllrin Server...
 echo ========================================
 set SERVER_NAME=cllrin
-cd /d E:\code\pricecheck
-python E:\code\pricecheck\main.py
+cd /d "%~dp0"
+python main.py
 
 echo.
 echo.

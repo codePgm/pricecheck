@@ -7,9 +7,10 @@ from datetime import datetime
 import os
 
 # ==================== 필수 설정 ====================
-# 기본 경로 설정
-BASE_IMAGE_PATH = r"E:\code\ocrPCmaple\image"
-BASE_OUTPUT_PATH = r"E:\code\ocrPCmaple\output"
+# 기본 경로 설정 (pricecheck 옆에 있는 ocrPCmaple 프로젝트 기준)
+_CODE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_IMAGE_PATH = os.path.join(_CODE_ROOT, "ocrPCmaple", "image")
+BASE_OUTPUT_PATH = os.path.join(_CODE_ROOT, "ocrPCmaple", "output")
 
 # 서버 선택 (scania 또는 cllrin)
 # 환경 변수 SERVER_NAME이 있으면 그것을 우선 사용 (배치 파일용)
